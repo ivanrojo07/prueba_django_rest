@@ -1,12 +1,10 @@
 from rest_framework.views import APIView
 from rest_framework.response import Response
 
-from rest_framework import status
+from rest_framework import status,authentication
 
-from profiles_api.serializers import HelloSerializers, RegisterSerializers
+from profiles_api.serializers import HelloSerializers, RegisterSerializers,LoginSerializer
 
-
-from django.views.decorators.csrf import csrf_exempt
 from rest_framework.decorators import  api_view, permission_classes
 from rest_framework.permissions import AllowAny
 from rest_framework.status import (
@@ -14,13 +12,15 @@ from rest_framework.status import (
     HTTP_404_NOT_FOUND,
     HTTP_200_OK,
 )
-from django.contrib.auth import authenticate
+from django.contrib.auth import authenticate,login,logout
 from rest_framework.authtoken.models import Token
-# function login
-@csrf_exempt
+from rest_framework.generics import CreateAPIView
+import json
+# function para obtener token
+
 @api_view(["POST"])
 @permission_classes((AllowAny,))
-def login(request):
+def get_token(request):
     username = request.data.get("username")
     password = request.data.get("password")
 
@@ -50,7 +50,7 @@ class RegisterView(APIView):
 
     def post(self, request, format=None):
         if request.user.is_authenticated:
-            return Response({"message":"You are authenticated"}, status=HTTP_400_BAD_REQUEST)
+            return Response({"message":"You are not authenticated"}, status=HTTP_400_BAD_REQUEST)
         else:
             serializer = self.serializer_class(data=request.data)
             if serializer.is_valid():
@@ -66,16 +66,37 @@ class RegisterView(APIView):
                 return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
+class CsrfExemptSessionAuthentication(authentication.SessionAuthentication):
+    def enforce_csrf(self, request):
+        return
 
+class LoginView(APIView):
+    permission_classes =(AllowAny,)
+    authentication_classes = (CsrfExemptSessionAuthentication,)
 
+    def post(self,request):
+        serializer = LoginSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        user = serializer.validated_data['user']
+        login(request, user)
+        return Response({'message':"success",'user':RegisterSerializers(user).data},status=HTTP_200_OK)
+        
+class LogoutView(APIView):
+    def post(self,request):
+        logout(request)
+        return Response({'message':"Logout successfully"},status=HTTP_200_OK)
 
-# @csrf_exempt
-# @permission_classes((AllowAny,))
+class UserView(CreateAPIView):
+    serializer_class=RegisterSerializers
+    lookup_field='pk'
+
+    def get_object(self,*args,**kwargs):
+        return self.request.user
+
 class HelloApiView(APIView):
     # HOLA MUNDO
 
     serializer_class = HelloSerializers
-    
     def get(self, request, format=None):
         # Retornar lista de caracteristicas apiview
 

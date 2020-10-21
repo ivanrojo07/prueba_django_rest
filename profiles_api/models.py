@@ -2,28 +2,39 @@ from django.db import models
 from django.contrib.auth.models import AbstractBaseUser
 from django.contrib.auth.models import PermissionsMixin
 from django.contrib.auth.models import BaseUserManager
+from django.utils import timezone
 # Create your models here.
 
 
 class UserProfileManager(BaseUserManager):
     """ MANAGER PARA PERFILES DE USUARIOS"""
-    def create_user(self,email,name,password=None):
+    def _create_user(self,email,name,password, is_staff,is_superuser, **extra_fields):
         ''' Nuevo usuario '''
         if not email:
             raise ValueError("Usuario debe tener un email")
+        now = timezone.now()
         email = self.normalize_email(email)
-        user = self.model(email=email, name=name)
+        user = self.model(
+            email=email, 
+            name=name,
+            is_staff=self.is_staff,
+            is_active = True,
+            is_superuser=self.is_superuser,
+            updated_at=now
+            )
         user.set_password(password)
         user.save(using=self._db)
 
         return user
 
-    def create_superuser(self, email, name, password):
-        user = self.create_user(email, name, password)
-        user.is_superuser = True
-        user.is_staff = True
-        user.save()
-        return user
+    def get_by_natural_key(self,username):
+        return self.get(**{'{}__iexact'.format(self.model.USERNAME_FIELD):username})
+    
+    def create_user(self,name,email,password,**extra_fields):
+        return self._create_user(email,name,password,False,False,**extra_fields)
+
+    def create_superuser(self, email, name, password, **extra_fields):
+        return self._create_user(email,name,password,True,True,**extra_fields)
 
 class UserProfile(AbstractBaseUser,PermissionsMixin):
     """MODELO BASE PARA USUARIOS"""
@@ -32,6 +43,7 @@ class UserProfile(AbstractBaseUser,PermissionsMixin):
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(default=False)
     is_superuser = models.BooleanField(default=False)
+    updated_at = models.DateTimeField(default=timezone.now)
 
     objects = UserProfileManager()
 
